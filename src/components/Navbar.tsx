@@ -17,6 +17,9 @@ export default async function Navbar() {
           {user ? (
             <>
               <Link href="/dashboard" className="text-sm text-slate-300 hover:text-white transition">Dashboard</Link>
+              {user.role === 'admin' && (
+                <Link href="/admin" className="text-sm text-slate-300 hover:text-white transition">Admin</Link>
+              )}
               <form action={logoutAction}>
                 <button
                   type="submit"

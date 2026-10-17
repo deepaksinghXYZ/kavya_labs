@@ -120,3 +120,54 @@ export async function verifyCredentials(email: string, password: string): Promis
   const ok = await bcrypt.compare(password, user.passwordHash);
   return ok ? toPublic(user) : null;
 }
+
+// ---------------------------------------------------------------------------
+// Admin operations
+// ---------------------------------------------------------------------------
+
+export class UserNotFoundError extends Error {
+  constructor() {
+    super('USER_NOT_FOUND');
+  }
+}
+
+/** Thrown when an operation would leave the system with no admin. */
+export class LastAdminError extends Error {
+  constructor() {
+    super('LAST_ADMIN');
+  }
+}
+
+/** All users, newest first. Password hashes are never included. */
+export async function listUsers(): Promise<PublicUser[]> {
+  const users = await readAll();
+  return users
+    .map(toPublic)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+}
+
+export async function setUserRole(id: string, role: Role): Promise<PublicUser> {
+  return withLock(async () => {
+    const users = await readAll();
+    const user = users.find((u) => u.id === id);
+    if (!user) throw new UserNotFoundError();
+    if (user.role === 'admin' && role !== 'admin' && users.filter((u) => u.role === 'admin').length <= 1) {
+      throw new LastAdminError();
+    }
+    user.role = role;
+    await writeAll(users);
+    return toPublic(user);
+  });
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  return withLock(async () => {
+    const users = await readAll();
+    const user = users.find((u) => u.id === id);
+    if (!user) throw new UserNotFoundError();
+    if (user.role === 'admin' && users.filter((u) => u.role === 'admin').length <= 1) {
+      throw new LastAdminError();
+    }
+    await writeAll(users.filter((u) => u.id !== id));
+  });
+}
